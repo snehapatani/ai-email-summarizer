@@ -1,6 +1,8 @@
 from googleapiclient.discovery import build
 from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
+import streamlit as st
+import json
 import pickle
 import os.path
 from bs4 import BeautifulSoup
@@ -17,7 +19,14 @@ def authenticate_gmail():
         if creds and creds.expired and creds.refresh_token:
             creds.refresh(Request())
         else:
-            flow = InstalledAppFlow.from_client_secrets_file('credentials.json', SCOPES)
+            if os.path.exists("credentials.json"):
+                flow = InstalledAppFlow.from_client_secrets_file('credentials.json', SCOPES)
+            else:
+                # Streamlit Cloud mode — load from secrets.toml
+                credentials_json = st.secrets["gmail"]["credentials"]
+                creds_dict = json.loads(credentials_json)
+                # Use from_client_config instead of from_client_secrets_file
+                flow = InstalledAppFlow.from_client_config(creds_dict, SCOPES)
             creds = flow.run_local_server(port=0)
         with open('token.pickle', 'wb') as token:
             pickle.dump(creds, token)
