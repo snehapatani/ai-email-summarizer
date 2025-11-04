@@ -1,4 +1,5 @@
 streamlit
+torch
 transformers 
 google-auth 
 google-auth-oauthlib 
