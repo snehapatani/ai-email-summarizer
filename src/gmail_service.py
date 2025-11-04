@@ -21,13 +21,14 @@ def authenticate_gmail():
         else:
             if os.path.exists("credentials.json"):
                 flow = InstalledAppFlow.from_client_secrets_file('credentials.json', SCOPES)
+                creds = flow.run_local_server(port=0)
             else:
                 # Streamlit Cloud mode — load from secrets.toml
                 credentials_json = st.secrets["gmail"]["credentials"]
                 creds_dict = json.loads(credentials_json)
                 # Use from_client_config instead of from_client_secrets_file
                 flow = InstalledAppFlow.from_client_config(creds_dict, SCOPES)
-            creds = flow.run_local_server(port=0)
+                creds = flow.run_console()
         with open('token.pickle', 'wb') as token:
             pickle.dump(creds, token)
     service = build('gmail', 'v1', credentials=creds)
