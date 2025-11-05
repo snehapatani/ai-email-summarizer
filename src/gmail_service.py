@@ -1,39 +1,41 @@
 from googleapiclient.discovery import build
+from google_auth_oauthlib.flow import Flow
 from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
 import streamlit as st
 import json
-import pickle
-import os.path
+import os
 from bs4 import BeautifulSoup
 import base64
 
 SCOPES = ['https://www.googleapis.com/auth/gmail.readonly']
 
 def authenticate_gmail():
-    creds = None
-    if os.path.exists('token.pickle'):
-        with open('token.pickle', 'rb') as token:
-            creds = pickle.load(token)
-    if not creds or not creds.valid:
-        if creds and creds.expired and creds.refresh_token:
-            creds.refresh(Request())
-        else:
-            if os.path.exists("credentials.json"):
-                flow = InstalledAppFlow.from_client_secrets_file('credentials.json', SCOPES)
-                creds = flow.run_local_server(port=0)
-            else:
-                # Streamlit Cloud mode — load from secrets.toml
-                credentials_json = st.secrets["gmail"]["credentials"]
-                creds_dict = json.loads(credentials_json)
-                # Use from_client_config instead of from_client_secrets_file
-                flow = InstalledAppFlow.from_client_config(creds_dict, SCOPES)
-                creds = flow.run_console()
-        with open('token.pickle', 'wb') as token:
-            pickle.dump(creds, token)
-    service = build('gmail', 'v1', credentials=creds)
-    return service
+    creds = st.session_state.get("gmail_creds")
+    if creds:
+        return creds
 
+    if "STREAMLIT_RUNTIME" in os.environ:
+        # Cloud environment -> use console flow
+        credentials_json = st.secrets["gmail"]["credentials"]
+        creds_dict = json.loads(credentials_json)
+        st.info("Click the link below to authorize Gmail:")
+        flow = InstalledAppFlow.from_client_config(creds_dict, SCOPES)
+        auth_url, _ = flow.authorization_url(prompt="consent")
+        st.markdown(f"[Authorize Gmail]({auth_url})")
+        code = st.text_input("Enter the authorization code here:")
+        if code:
+            flow.fetch_token(code=code)
+            creds = flow.credentials
+            st.session_state["gmail_creds"] = creds
+            return creds
+    else:
+        # Local environment -> use local server flow
+        flow = InstalledAppFlow.from_client_secrets_file("credentials.json", SCOPES)
+        creds = flow.run_local_server(port=0)
+        st.session_state["gmail_creds"] = creds
+        return creds
+    
 
 def get_emails(service, query: str, max_results=5):
     """
