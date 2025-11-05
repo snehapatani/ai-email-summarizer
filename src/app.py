@@ -1,5 +1,5 @@
 import streamlit as st
-from gmail_service import get_emails, authenticate_gmail
+from gmail_service import get_emails, authenticate_gmail, check_creds
 from googleapiclient.discovery import build
 from summarizer import summarize_email
 import streamlit.components.v1 as components
@@ -30,7 +30,7 @@ st.set_page_config(page_title="AI Email Summarizer", page_icon="📩")
 st.title("📩 AI Email Summarizer")
 st.write("Fetch your Gmail messages by query and get concise summaries.")
 
-creds = st.session_state.get("gmail_creds")
+creds = check_creds()
 if creds:
     get_email_service(creds);
 else:

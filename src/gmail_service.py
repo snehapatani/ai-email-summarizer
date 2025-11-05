@@ -7,65 +7,68 @@ import json
 import os
 from bs4 import BeautifulSoup
 import base64
+import tempfile
+import pickle
 
 SCOPES = ['https://www.googleapis.com/auth/gmail.readonly']
+TEMP_CRED_FILE = os.path.join(tempfile.gettempdir(), "gmail_creds.pkl")
 
-def authenticate_gmail():
+
+def check_creds():
     creds = st.session_state.get("gmail_creds")
     if creds:
         return creds
+    
+     # Step 1: Check if stored credentials exist
+    if os.path.exists(TEMP_CRED_FILE):
+        with open(TEMP_CRED_FILE, "rb") as f:
+            creds = pickle.load(f)
+        st.session_state["gmail_creds"] = creds
+        return creds
 
+
+def authenticate_gmail():
     if "STREAMLIT_RUNTIME" in os.environ:
-
         authenticate_gmail_cloud()
-        # # Cloud environment -> use console flow
-        # redirect_uri = "https://ai-email-summarizer.streamlit.app/oauth2callback"
-        # credentials_json = st.secrets["gmail"]["credentials"]
-        # creds_dict = json.loads(credentials_json)
-        # st.info("Click the link below to authorize Gmail:")
-        # flow = InstalledAppFlow.from_client_config(creds_dict, SCOPES, redirect_uri=redirect_uri)
-        # auth_url, _ = flow.authorization_url(prompt='consent')
-        # st.markdown(f"[Authorize Gmail]({auth_url})")
-        # code = st.text_input("Paste the code from Google here:")
-        # if code:
-        #     flow.fetch_token(code=code)
-        #     creds = flow.credentials
-        #     st.session_state["gmail_creds"] = creds
-        #     return creds
-
     else:
         # Local environment -> use local server flow
         flow = InstalledAppFlow.from_client_secrets_file("credentials.json", SCOPES)
         creds = flow.run_local_server(port=0)
         st.session_state["gmail_creds"] = creds
+        with open(TEMP_CRED_FILE, "wb") as f:
+            pickle.dump(creds, f)
         return creds
 
 def authenticate_gmail_cloud():
-    if "gmail_creds" in st.session_state:
-        st.success("✅ Gmail already authenticated")
-        return st.session_state["gmail_creds"]
-    # Step 1: Start OAuth flow
-    if "code" not in st.session_state and "auth_initiated" not in st.session_state:
-        st.session_state["auth_initiated"] = True
-        redirect_uri = "https://ai-email-summarizer.streamlit.app/oauth2callback"
-        credentials_json = st.secrets["gmail"]["credentials"]
-        creds_dict = json.loads(credentials_json)
-        flow = InstalledAppFlow.from_client_config(creds_dict, SCOPES, redirect_uri=redirect_uri)
-        auth_url, _ = flow.authorization_url(prompt="consent")
-        st.markdown(f"[Authorize Gmail]({auth_url})")  # Opens in same tab
+    credentials_json = st.secrets["gmail"]["credentials"]
+    creds_dict = json.loads(credentials_json)
+    redirect_uri = "https://ai-email-summarizer.streamlit.app/oauth2callback"
 
-    # Step 2: After redirect, capture code from query params
+    # Initialize OAuth Flow
+    flow = Flow.from_client_config(
+        creds_dict,
+        scopes=SCOPES,
+        redirect_uri=redirect_uri
+    )
+
+    # Step 3a: Show authorization link if no code yet
     query_params = st.experimental_get_query_params()
+    if "code" not in query_params:
+        auth_url, _ = flow.authorization_url(prompt="consent")
+        st.markdown(f"[Authorize Gmail]({auth_url})")
+        st.info("Click the link above to authorize Gmail. The new tab will redirect back automatically.")
+        return None
+
+    # Step 3b: Code received after redirect
     if "code" in query_params:
         code = query_params["code"][0]
-        redirect_uri = "https://ai-email-summarizer.streamlit.app/oauth2callback"
-        credentials_json = st.secrets["gmail"]["credentials"]
-        creds_dict = json.loads(credentials_json)
-        flow = InstalledAppFlow.from_client_config(creds_dict, SCOPES, redirect_uri=redirect_uri)
         flow.fetch_token(code=code)
         creds = flow.credentials
         st.session_state["gmail_creds"] = creds
-        # st.experimental_rerun()  # Refresh page after authentication
+        # Persist credentials to temp file for session continuity
+        with open(TEMP_CRED_FILE, "wb") as f:
+            pickle.dump(creds, f)
+        st.experimental_rerun()  # refresh app with credentials
         return creds
 
 def get_emails(service, query: str, max_results=5):
