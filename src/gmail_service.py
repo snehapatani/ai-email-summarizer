@@ -17,18 +17,20 @@ def authenticate_gmail():
 
     if "STREAMLIT_RUNTIME" in os.environ:
         # Cloud environment -> use console flow
+        redirect_uri = "https://ai-email-summarizer.streamlit.app/oauth2callback"
         credentials_json = st.secrets["gmail"]["credentials"]
         creds_dict = json.loads(credentials_json)
         st.info("Click the link below to authorize Gmail:")
-        flow = InstalledAppFlow.from_client_config(creds_dict, SCOPES)
-        auth_url, _ = flow.authorization_url(prompt="consent")
+        flow = InstalledAppFlow.from_client_config(creds_dict, SCOPES, redirect_uri=redirect_uri)
+        auth_url, _ = flow.authorization_url(prompt='consent')
         st.markdown(f"[Authorize Gmail]({auth_url})")
-        code = st.text_input("Enter the authorization code here:")
+        code = st.text_input("Paste the code from Google here:")
         if code:
             flow.fetch_token(code=code)
             creds = flow.credentials
             st.session_state["gmail_creds"] = creds
             return creds
+
     else:
         # Local environment -> use local server flow
         flow = InstalledAppFlow.from_client_secrets_file("credentials.json", SCOPES)
