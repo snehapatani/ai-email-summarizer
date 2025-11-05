@@ -66,6 +66,7 @@ def authenticate_gmail_cloud():
         creds = flow.credentials
         st.session_state["gmail_creds"] = creds
         st.experimental_rerun()  # Refresh page after authentication
+        return creds
 
 def get_emails(service, query: str, max_results=5):
     """
